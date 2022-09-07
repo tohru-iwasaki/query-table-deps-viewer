@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import Split from 'react-split'
 import ReactFlow, { Node, Edge, Background, Controls } from 'react-flow-renderer'
+import { Parser, AST } from 'node-sql-parser'
 
 type Query = string
 
@@ -11,22 +12,68 @@ type FlowState = {
 }
 
 const createGraphFromQuery = (query: Query) => {
+  const position = { x: 0, y: 0 }
   const nodes: Node[] = []
   const edges: Edge[] = []
   const flow: FlowState = { nodes, edges }
 
-  // TODO 一旦ダミーデータで作る。後で修正する
-  nodes.push({
-    id: '1',
-    data: { label: 'test1' },
-    position: { x: 200, y: 0 }
+  // クエリ文をパースする
+  const parser = new Parser()
+  const ast = parser.astify(query, { database: 'BigQuery' }) as AST
+  const tableList = parser.tableList(query, { database: 'BigQuery' })
+
+  console.log(tableList)
+
+  // 得られたテーブルリストをグラフのノードに追加する
+  tableList.forEach((table_elem) => {
+    const table_name = table_elem.split(/::/)[2]
+    nodes.push({
+      id: table_name,
+      data: { label: table_name },
+      position
+    })
   })
-  nodes.push({
-    id: '2',
-    data: { label: 'test2' },
-    position: { x: 100, y: 100 }
+
+  // 単なるDictまで型を緩める（扱いに慣れてないため）
+  type Dict<T = any> = Record<string, T>
+  const astDict = ast as Dict
+  console.log(astDict)
+
+  // with句にあるfrom情報をグラフのエッジに追加する
+  astDict.with?.forEach((with_elem: Dict) => {
+    if (with_elem.stmt.ast.type !== 'select') {
+      return
+    }
+    with_elem.stmt.ast.from?.forEach((from_elem: Dict) => {
+      edges.push({
+        id: from_elem.table + '-' + with_elem.name.value,
+        source: from_elem.table,
+        target: with_elem.name.value,
+        type: 'smoothstep'
+      })
+    })
   })
-  edges.push({ id: '1-2', source: '1', target: '2' })
+
+  // 最終的なselect句をグラフのノードに追加する
+  nodes.push({
+    id: '(select)',
+    data: { label: '(select)' },
+    type: 'output',
+    style: {
+      color: 'navy'
+    },
+    position
+  })
+
+  // 最終的なselect句にあるfrom情報をグラフのエッジに追加する
+  astDict.select.from?.forEach((from_elem: Dict) => {
+    edges.push({
+      id: from_elem.table + '-(select)',
+      source: from_elem.table,
+      target: '(select)',
+      type: 'smoothstep'
+    })
+  })
 
   return flow
 }
