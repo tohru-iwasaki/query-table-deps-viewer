@@ -140,7 +140,12 @@ const SQLForm = (props: SQLFormProps) => {
 type GraphProps = FlowState
 const Graph = (props: GraphProps) => {
   return (
-    <ReactFlow style={{ border: '1px solid black' }} nodes={props.nodes} edges={props.edges}>
+    <ReactFlow
+      style={{ border: '1px solid black' }}
+      nodes={props.nodes}
+      edges={props.edges}
+      fitView
+    >
       <Controls />
       <Background />
     </ReactFlow>
