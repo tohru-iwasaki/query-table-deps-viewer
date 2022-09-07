@@ -3,12 +3,43 @@ import { createRoot } from 'react-dom/client'
 import Split from 'react-split'
 import ReactFlow, { Node, Edge, Background, Controls } from 'react-flow-renderer'
 import { Parser, AST } from 'node-sql-parser'
+import dagre from 'dagre'
 
 type Query = string
 
 type FlowState = {
   nodes: Node[]
   edges: Edge[]
+}
+
+const getLayoutedFlow = (flow: FlowState) => {
+  const nodeWidth = 172
+  const nodeHeight = 36
+
+  const dagreGraph = new dagre.graphlib.Graph()
+  dagreGraph.setGraph({})
+  dagreGraph.setDefaultEdgeLabel(() => ({}))
+
+  // dagreに配置を計算してもらう
+  flow.nodes.forEach((node) => {
+    dagreGraph.setNode(node.id, { width: nodeWidth, height: nodeHeight })
+  })
+  flow.edges.forEach((edge) => {
+    dagreGraph.setEdge(edge.source, edge.target)
+  })
+  dagre.layout(dagreGraph)
+
+  // 得た配置を設定する
+  flow.nodes.forEach((node) => {
+    const nodeWithPosition = dagreGraph.node(node.id)
+    node.position = {
+      x: nodeWithPosition.x - nodeWidth / 2,
+      y: nodeWithPosition.y - nodeHeight / 2
+    }
+    return node
+  })
+
+  return flow
 }
 
 const createGraphFromQuery = (query: Query) => {
@@ -75,7 +106,7 @@ const createGraphFromQuery = (query: Query) => {
     })
   })
 
-  return flow
+  return getLayoutedFlow(flow)
 }
 
 // SQLを入力するフォーム
